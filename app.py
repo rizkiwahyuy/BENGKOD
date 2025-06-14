@@ -1,85 +1,96 @@
 import streamlit as st
 import joblib
 import numpy as np
-from sklearn.preprocessing import StandardScaler
+import pandas as pd
 
-# Memuat model yang telah disimpan
-model = joblib.load('best_random_forest_model.joblib')  # Ganti dengan model yang sesuai
+# ===============================
+# Load model dan scaler (sesuai PDF)
+# ===============================
+model = joblib.load('best_model_rf.pkl')  # sesuai yang disimpan di Colab
+scaler = joblib.load('scaler.pkl')
 
-# Memuat scaler yang telah disimpan
-scaler = joblib.load('scaler.joblib')
-
+# ===============================
 # Judul aplikasi
+# ===============================
 st.title("Prediksi Tingkat Obesitas")
-
-# Deskripsi aplikasi
 st.write("""
-Aplikasi ini memprediksi tingkat obesitas berdasarkan data input yang diberikan oleh pengguna.
+Aplikasi ini memprediksi tingkat obesitas berdasarkan data input pengguna.
 """)
 
-# Membuat form input untuk pengguna
+# ===============================
+# Form input pengguna
+# ===============================
 st.header("Masukkan Data Pengguna")
 
-# Input form untuk fitur-fitur yang diperlukan
 gender = st.selectbox("Jenis Kelamin", ["Female", "Male"])
-gender = 1 if gender == "Male" else 0  # 0 = Female, 1 = Male
+gender = 1 if gender == "Male" else 0
 
-age = st.number_input("Usia", min_value=10, max_value=100, value=25)
-height = st.number_input("Tinggi Badan (cm)", min_value=50, max_value=250, value=170) / 100  # Convert to meters
-weight = st.number_input("Berat Badan (kg)", min_value=10, max_value=300, value=70)
+age = st.number_input("Usia", 10, 100, 25)
+height = st.number_input("Tinggi Badan (cm)", 50, 250, 170) / 100
+weight = st.number_input("Berat Badan (kg)", 10, 300, 65)
 
-family_history_with_overweight = st.selectbox("Apakah ada riwayat keluarga dengan obesitas?", ["Yes", "No"])
-family_history_with_overweight = 1 if family_history_with_overweight == "Yes" else 0
+family_history = st.selectbox("Riwayat keluarga dengan obesitas?", ["Yes", "No"])
+family_history = 1 if family_history == "Yes" else 0
 
-FAVC = st.selectbox("Apakah Anda sering mengonsumsi makanan tinggi kalori?", ["Yes", "No"])
-FAVC = 1 if FAVC == "Yes" else 0
+favc = st.selectbox("Konsumsi makanan tinggi kalori?", ["Yes", "No"])
+favc = 1 if favc == "Yes" else 0
 
-FCVC = st.number_input("Seberapa sering Anda makan sayuran?", min_value=1, max_value=5, value=3)
-NCP = st.number_input("Berapa kali Anda makan besar dalam sehari?", min_value=1, max_value=5, value=3)
+fcvc = st.slider("Frekuensi makan sayur (1–3)", 1.0, 3.0, 2.0)
+ncp = st.slider("Jumlah makanan utama per hari (1–4)", 1.0, 4.0, 3.0)
 
-CAEC = st.selectbox("Apakah Anda sering makan camilan seperti kue, makanan manis, atau makanan cepat saji?", ["Yes", "No"])
-CAEC = 1 if CAEC == "Yes" else 0
+caec = st.selectbox("Frekuensi ngemil / fast food", ["no", "Sometimes", "Frequently", "Always"])
+caec = {"no": 0, "Sometimes": 1, "Frequently": 2, "Always": 3}[caec]
 
-SMOKE = st.selectbox("Apakah Anda merokok?", ["Yes", "No"])
-SMOKE = 1 if SMOKE == "Yes" else 0
+smoke = st.selectbox("Merokok?", ["Yes", "No"])
+smoke = 1 if smoke == "Yes" else 0
 
-CH2O = st.number_input("Berapa banyak air yang Anda minum setiap hari (dalam liter)?", min_value=1.0, max_value=10.0, value=2.0)
-SCC = st.selectbox("Apakah Anda memantau asupan kalori harian?", ["Yes", "No"])
-SCC = 1 if SCC == "Yes" else 0
+ch2o = st.slider("Minum air harian (liter)", 1.0, 3.0, 2.0)
 
-FAF = st.number_input("Seberapa sering Anda melakukan aktivitas fisik?", min_value=1, max_value=5, value=3)
-TUE = st.number_input("Berapa lama Anda menggunakan perangkat teknologi setiap hari (dalam jam)?", min_value=0, max_value=24, value=3)
+scc = st.selectbox("Kontrol kalori?", ["Yes", "No"])
+scc = 1 if scc == "Yes" else 0
 
-CALC = st.selectbox("Seberapa sering Anda mengonsumsi alkohol?", ["Never", "Rarely", "Frequently", "Always"])
-CALC = {"Never": 0, "Rarely": 1, "Frequently": 2, "Always": 3}[CALC]
+faf = st.slider("Aktivitas fisik mingguan (0–3)", 0.0, 3.0, 1.0)
+tue = st.slider("Durasi penggunaan teknologi (0–3 jam)", 0.0, 3.0, 1.0)
 
-MTRANS = st.selectbox("Jenis transportasi yang biasa Anda gunakan?", ["Walking", "Public_Transportation", "Automobile", "Bike", "Motorbike"])
-MTRANS = {"Walking": 0, "Public_Transportation": 1, "Automobile": 2, "Bike": 3, "Motorbike": 4}[MTRANS]
+calc = st.selectbox("Konsumsi alkohol", ["Never", "Rarely", "Frequently", "Always"])
+calc = {"Never": 0, "Rarely": 1, "Frequently": 2, "Always": 3}[calc]
 
-# Memasukkan data dalam bentuk array untuk prediksi
-input_data = np.array([[age, gender, height, weight, family_history_with_overweight, FAVC, FCVC, NCP, CAEC, SMOKE, CH2O, SCC, FAF, TUE, CALC, MTRANS]])
+mtrans = st.selectbox("Transportasi", ["Walking", "Public_Transportation", "Automobile", "Bike", "Motorbike"])
+mtrans = {"Walking": 0, "Public_Transportation": 1, "Automobile": 2, "Bike": 3, "Motorbike": 4}[mtrans]
 
-# Standarisasi input menggunakan scaler yang sudah dilatih
-input_data_scaled = scaler.transform(input_data)
+# ===============================
+# Susun input (urutan sesuai model PDF)
+# ===============================
+input_data = pd.DataFrame([[
+    age, gender, height, weight,
+    calc, favc, fcvc, ncp,
+    scc, smoke, ch2o, family_history,
+    faf, tue, caec, mtrans
+]], columns=[
+    'Age', 'Gender', 'Height', 'Weight',
+    'CALC', 'FAVC', 'FCVC', 'NCP',
+    'SCC', 'SMOKE', 'CH2O', 'family_history_with_overweight',
+    'FAF', 'TUE', 'CAEC', 'MTRANS'
+])
 
-# Tombol untuk melakukan prediksi
+# ===============================
+# Prediksi
+# ===============================
 if st.button("Prediksi"):
-    # Melakukan prediksi dengan data yang telah distandarisasi
-    prediction = model.predict(input_data_scaled)
-    
-    # Menampilkan hasil prediksi
-    st.write("Prediksi Tingkat Obesitas:")
-    if prediction[0] == 0:
-        st.write("Berat Badan Kurang (Insufficient Weight)")
-    elif prediction[0] == 1:
-        st.write("Berat Badan Normal (Normal Weight)")
-    elif prediction[0] == 2:
-        st.write("Kelebihan Berat Badan Tingkat I (Overweight Level I)")
-    elif prediction[0] == 3:
-        st.write("Kelebihan Berat Badan Tingkat II (Overweight Level II)")
-    elif prediction[0] == 4:
-        st.write("Obesitas Tipe I (Obesity Type I)")
-    elif prediction[0] == 5:
-        st.write("Obesitas Tipe II (Obesity Type II)")
-    elif prediction[0] == 6:
-        st.write("Obesitas Tipe III (Obesity Type III)")
+    try:
+        input_scaled = scaler.transform(input_data.values)  # Gunakan .values untuk hindari nama kolom
+        prediction = model.predict(input_scaled)
+
+        kategori = {
+            0: "Berat Badan Kurang (Insufficient Weight)",
+            1: "Berat Badan Normal (Normal Weight)",
+            2: "Kelebihan Berat Badan Tingkat I (Overweight Level I)",
+            3: "Kelebihan Berat Badan Tingkat II (Overweight Level II)",
+            4: "Obesitas Tipe I (Obesity Type I)",
+            5: "Obesitas Tipe II (Obesity Type II)",
+            6: "Obesitas Tipe III (Obesity Type III)"
+        }
+
+        st.success(f"Hasil Prediksi: {kategori.get(prediction[0], 'Tidak diketahui')}")
+    except Exception as e:
+        st.error(f"Terjadi kesalahan saat prediksi:\n\n{str(e)}")
